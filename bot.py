@@ -31,7 +31,6 @@ with open("texts.json", "r", encoding="utf-8") as f:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ========== Клавиатура главного меню (новый порядок) ==========
 def get_main_menu_keyboard():
     keyboard = [
         ["О нас", "Презентация"],
@@ -42,7 +41,6 @@ def get_main_menu_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-# ========== Inline-клавиатуры ==========
 def get_about_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("Скачать презентацию", callback_data="download_presentation")],
@@ -76,8 +74,8 @@ def get_partner_keyboard():
 
 def get_contacts_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📞 Позвонить", url="tel:+78123857307")],
-        [InlineKeyboardButton("✉️ Написать письмо", url="mailto:info@globalrussia.com")],
+        [InlineKeyboardButton("📞 Позвонить", callback_data="call_phone")],
+        [InlineKeyboardButton("✉️ Написать письмо", callback_data="mail_email")],
         [InlineKeyboardButton("🌐 Открыть сайт", url="https://globalrussia.com")],
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
     ])
@@ -98,7 +96,6 @@ def get_prediction_keyboard():
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
     ])
 
-# ========== Списки для рулетки и предсказаний ==========
 DESTINATIONS = [
     "Алтай", "Байкал", "Карелия", "Камчатка", "Сочи", "Крым", "Москва", "Санкт-Петербург",
     "Казань", "Екатеринбург", "Новосибирск", "Владивосток", "Калининград", "Мурманск",
@@ -131,7 +128,6 @@ async def notify_chat(application, user, message, feedback_type):
     except Exception as e:
         logger.error(f"Ошибка отправки в чат {NOTIFICATION_CHAT_ID}: {e}")
 
-# ========== Команды ==========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         texts["start"],
@@ -242,7 +238,6 @@ async def prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=get_prediction_keyboard()
     )
 
-# ========== Callback-обработчик ==========
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -278,7 +273,23 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text("Извините, файл презентации временно недоступен.")
         return
 
-    # Переходы между разделами через inline-кнопки
+    # Обработка звонка и email
+    if data == "call_phone":
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text(
+            "📞 Номер для звонка: +7 (812) 385-73-07",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Главное меню", callback_data="main_menu")]])
+        )
+        return
+
+    if data == "mail_email":
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text(
+            "✉️ Email: info@globalrussia.com",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Главное меню", callback_data="main_menu")]])
+        )
+        return
+
     if data == "project":
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(
