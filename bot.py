@@ -31,18 +31,18 @@ with open("texts.json", "r", encoding="utf-8") as f:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ========== Клавиатура главного меню ==========
+# ========== Клавиатура главного меню (новый порядок) ==========
 def get_main_menu_keyboard():
     keyboard = [
-        ["О нас", "Обсудить проект"],
-        ["Пригласить в тендер", "Презентация"],
-        ["Задать вопрос Михаилу", "Стать подрядчиком"],
-        ["Контакты", "Рулетка направлений"],
-        ["Проектное предсказание"]
+        ["О нас", "Презентация"],
+        ["Обсудить проект", "Задать вопрос Михаилу"],
+        ["Пригласить в тендер", "Стать подрядчиком"],
+        ["Проектное предсказание", "Рулетка направлений"],
+        ["Контакты"],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-# ========== Inline-клавиатуры для разделов ==========
+# ========== Inline-клавиатуры ==========
 def get_about_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("Скачать презентацию", callback_data="download_presentation")],
@@ -131,7 +131,7 @@ async def notify_chat(application, user, message, feedback_type):
     except Exception as e:
         logger.error(f"Ошибка отправки в чат {NOTIFICATION_CHAT_ID}: {e}")
 
-# ========== Команды и обработчики ==========
+# ========== Команды ==========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         texts["start"],
@@ -140,27 +140,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Убираем главное меню, показываем раздел
     await update.message.reply_text(
-        texts["about"],
-        reply_markup=ReplyKeyboardRemove(),  # скрываем главное меню
+        texts["about"] + "\n\nВыберите действие:",
+        reply_markup=ReplyKeyboardRemove(),
+        reply_markup=get_about_keyboard(),
         disable_web_page_preview=True
-    )
-    await update.message.reply_text(
-        "Выберите действие:",
-        reply_markup=get_about_keyboard()
     )
 
 async def project(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["awaiting_feedback"] = True
     context.user_data["feedback_type"] = "Обсуждение проекта"
     await update.message.reply_text(
-        texts["project"],
-        reply_markup=ReplyKeyboardRemove(),  # скрываем главное меню
+        texts["project"] + "\n\n" + texts["ask_message"],
+        reply_markup=ReplyKeyboardRemove(),
         disable_web_page_preview=True
     )
     await update.message.reply_text(
-        texts["ask_message"],
+        "Для отмены нажмите кнопку ниже:",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена", callback_data="cancel_feedback")]])
     )
 
@@ -168,19 +164,19 @@ async def tender(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["awaiting_feedback"] = True
     context.user_data["feedback_type"] = "Приглашение в тендер"
     await update.message.reply_text(
-        texts["tender"],
-        reply_markup=ReplyKeyboardRemove(),  # скрываем главное меню
+        texts["tender"] + "\n\n" + texts["ask_message"],
+        reply_markup=ReplyKeyboardRemove(),
         disable_web_page_preview=True
     )
     await update.message.reply_text(
-        texts["ask_message"],
+        "Для отмены нажмите кнопку ниже:",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена", callback_data="cancel_feedback")]])
     )
 
 async def presentation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         texts["presentation"],
-        reply_markup=ReplyKeyboardRemove(),  # скрываем главное меню
+        reply_markup=ReplyKeyboardRemove(),
         parse_mode="Markdown"
     )
     try:
@@ -191,7 +187,6 @@ async def presentation(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
     except FileNotFoundError:
         await update.message.reply_text("Извините, файл презентации временно недоступен.")
-    # Показываем inline-кнопки после презентации
     await update.message.reply_text(
         "Дополнительные действия:",
         reply_markup=get_presentation_keyboard()
@@ -201,58 +196,54 @@ async def partner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["awaiting_feedback"] = True
     context.user_data["feedback_type"] = "Стать подрядчиком"
     await update.message.reply_text(
-        texts["partner"],
-        reply_markup=ReplyKeyboardRemove(),  # скрываем главное меню
+        texts["partner"] + "\n\n" + texts["ask_message"] + "\n\nОпишите свою компанию по пунктам выше.",
+        reply_markup=ReplyKeyboardRemove(),
         disable_web_page_preview=True
     )
     await update.message.reply_text(
-        texts["ask_message"] + "\n\nОпишите свою компанию по пунктам выше.",
+        "Для отмены нажмите кнопку ниже:",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена", callback_data="cancel_feedback")]])
     )
 
 async def contacts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        texts["contacts"],
-        reply_markup=ReplyKeyboardRemove(),  # скрываем главное меню
+        texts["contacts"] + "\n\nСвяжитесь с нами:",
+        reply_markup=ReplyKeyboardRemove(),
+        reply_markup=get_contacts_keyboard(),
         disable_web_page_preview=True
-    )
-    await update.message.reply_text(
-        "Свяжитесь с нами:",
-        reply_markup=get_contacts_keyboard()
     )
 
 async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        texts["roulette_intro"],
-        reply_markup=ReplyKeyboardRemove(),  # скрываем главное меню
+        texts["roulette_intro"] + "\n\nНажмите кнопку, чтобы начать:",
+        reply_markup=ReplyKeyboardRemove(),
         disable_web_page_preview=True
     )
     await update.message.reply_text(
-        "Нажмите кнопку, чтобы начать:",
+        "Готовы?",
         reply_markup=get_roulette_keyboard(show_spin=True)
     )
 
 async def prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pred = random.choice(PREDICTIONS)
     await update.message.reply_text(
-        texts["prediction_result"].format(prediction=pred),
-        reply_markup=ReplyKeyboardRemove(),  # скрываем главное меню
+        texts["prediction_result"].format(prediction=pred) + "\n\nЧто дальше?",
+        reply_markup=ReplyKeyboardRemove(),
         parse_mode="Markdown"
     )
     await update.message.reply_text(
-        "Что дальше?",
+        "Выберите действие:",
         reply_markup=get_prediction_keyboard()
     )
 
+# ========== Callback-обработчик ==========
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
 
-    # Возврат в главное меню – редактируем текущее сообщение, убираем inline-кнопки,
-    # затем отправляем новое сообщение с главным меню
     if data == "main_menu":
-        await query.edit_message_reply_markup(reply_markup=None)  # удаляем inline-кнопки
+        await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(
             "Главное меню:",
             reply_markup=get_main_menu_keyboard()
@@ -281,32 +272,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text("Извините, файл презентации временно недоступен.")
         return
 
-    # Обработка переходов по inline-кнопкам, которые ведут в другие разделы
-    # При этом нужно также скрыть главное меню (если оно ещё не скрыто) и показать соответствующий раздел
+    # Переходы между разделами через inline-кнопки
     if data == "project":
         await query.edit_message_reply_markup(reply_markup=None)
-        # Вызываем функцию project, но она ожидает Update с message, а у нас query.
-        # Создадим искусственный Update или просто продублируем логику.
-        # Проще: переиспользуем функцию, передав ей query.message как источник.
-        # Для этого создадим фиктивный update с сообщением из query.
-        # Но лучше просто вызвать handle_main_menu с текстом "Обсудить проект"? Нет, там текст не совпадает.
-        # Оптимально: вызвать функцию project, передав ей update и context, но update у нас от query.
-        # Мы можем создать новый объект Update с сообщением, но это сложно.
-        # Поэтому просто продублируем код: отправим сообщение с разделом.
-        # Уже есть функция project, но она использует update.message. Можно адаптировать, передав query.message.
-        # Сделаем так: создадим фейковое сообщение.
-        # Проще: отправим новое сообщение, как в project.
-        # Но чтобы не дублировать, создадим вспомогательную функцию.
-        # Я покажу простой вариант: вызовем обработчик текстового меню с нужным текстом.
-        # Но это неудобно. Давайте создадим отдельную функцию для отображения раздела без удаления ReplyKeyboard.
-        # Однако мы уже удалили ReplyKeyboard при первом входе, поэтому здесь главное меню уже скрыто.
-        # Поэтому просто отправляем сообщение с inline-кнопками.
         await query.message.reply_text(
-            texts["project"],
+            texts["project"] + "\n\n" + texts["ask_message"],
             disable_web_page_preview=True
         )
         await query.message.reply_text(
-            texts["ask_message"],
+            "Для отмены нажмите кнопку ниже:",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена", callback_data="cancel_feedback")]])
         )
         context.user_data["awaiting_feedback"] = True
@@ -316,11 +290,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "tender":
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(
-            texts["tender"],
+            texts["tender"] + "\n\n" + texts["ask_message"],
             disable_web_page_preview=True
         )
         await query.message.reply_text(
-            texts["ask_message"],
+            "Для отмены нажмите кнопку ниже:",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена", callback_data="cancel_feedback")]])
         )
         context.user_data["awaiting_feedback"] = True
@@ -330,11 +304,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "roulette":
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(
-            texts["roulette_intro"],
+            texts["roulette_intro"] + "\n\nНажмите кнопку, чтобы начать:",
             disable_web_page_preview=True
         )
         await query.message.reply_text(
-            "Нажмите кнопку, чтобы начать:",
+            "Готовы?",
             reply_markup=get_roulette_keyboard(show_spin=True)
         )
         return
@@ -343,11 +317,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(reply_markup=None)
         pred = random.choice(PREDICTIONS)
         await query.message.reply_text(
-            texts["prediction_result"].format(prediction=pred),
+            texts["prediction_result"].format(prediction=pred) + "\n\nЧто дальше?",
             parse_mode="Markdown"
         )
         await query.message.reply_text(
-            "Что дальше?",
+            "Выберите действие:",
             reply_markup=get_prediction_keyboard()
         )
         return
@@ -373,13 +347,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text("Неизвестная команда.")
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Если ожидаем обратную связь
     if context.user_data.get("awaiting_feedback"):
         user = update.effective_user
         msg = update.message.text
         feedback_type = context.user_data.get("feedback_type", "Неизвестно")
         await notify_chat(context.application, user, msg, feedback_type)
-        # После отправки показываем главное меню
         await update.message.reply_text(
             texts["feedback_received"],
             reply_markup=get_main_menu_keyboard()
@@ -388,7 +360,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop("feedback_type", None)
         return
 
-    # Если пользователь отправил текст вне ожидания, показываем главное меню (на случай, если оно скрыто)
     await update.message.reply_text(
         "Используйте кнопки меню для навигации.",
         reply_markup=get_main_menu_keyboard()
@@ -398,31 +369,31 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "О нас":
         await about(update, context)
-    elif text == "Обсудить проект":
-        await project(update, context)
-    elif text == "Пригласить в тендер":
-        await tender(update, context)
     elif text == "Презентация":
         await presentation(update, context)
+    elif text == "Обсудить проект":
+        await project(update, context)
     elif text == "Задать вопрос Михаилу":
         context.user_data["awaiting_feedback"] = True
         context.user_data["feedback_type"] = "Вопрос Михаилу"
         await update.message.reply_text(
             "Напишите ваш вопрос для Михаила. Бот передаст его в общий чат организаторов.",
-            reply_markup=ReplyKeyboardRemove()  # скрываем главное меню
+            reply_markup=ReplyKeyboardRemove()
         )
         await update.message.reply_text(
             texts["ask_message"],
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена", callback_data="cancel_feedback")]])
         )
+    elif text == "Пригласить в тендер":
+        await tender(update, context)
     elif text == "Стать подрядчиком":
         await partner(update, context)
-    elif text == "Контакты":
-        await contacts(update, context)
-    elif text == "Рулетка направлений":
-        await roulette(update, context)
     elif text == "Проектное предсказание":
         await prediction(update, context)
+    elif text == "Рулетка направлений":
+        await roulette(update, context)
+    elif text == "Контакты":
+        await contacts(update, context)
     else:
         await update.message.reply_text(
             "Пожалуйста, используйте кнопки меню.",
@@ -442,7 +413,7 @@ def main():
     application.add_handler(CommandHandler("prediction", prediction))
 
     application.add_handler(MessageHandler(
-        filters.Regex("^(О нас|Обсудить проект|Пригласить в тендер|Презентация|Задать вопрос Михаилу|Стать подрядчиком|Контакты|Рулетка направлений|Проектное предсказание)$"),
+        filters.Regex("^(О нас|Презентация|Обсудить проект|Задать вопрос Михаилу|Пригласить в тендер|Стать подрядчиком|Проектное предсказание|Рулетка направлений|Контакты)$"),
         handle_main_menu
     ))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
