@@ -25,7 +25,7 @@ if NOTIFICATION_CHAT_ID:
 
 PRESENTATION_PATH = os.getenv("PRESENTATION_PATH", "presentation.pdf")
 
-with open("texts_gr.json", "r", encoding="utf-8") as f:
+with open("texts.json", "r", encoding="utf-8") as f:
     texts = json.load(f)
 
 logging.basicConfig(level=logging.INFO)
