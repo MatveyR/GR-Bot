@@ -28,6 +28,10 @@ PRESENTATION_PATH = os.getenv("PRESENTATION_PATH", "presentation.pdf")
 with open("texts.json", "r", encoding="utf-8") as f:
     texts = json.load(f)
 
+# Извлекаем списки из текстов
+DESTINATIONS = texts.get("destinations", [])
+PREDICTIONS = texts.get("predictions", [])
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -74,8 +78,6 @@ def get_partner_keyboard():
 
 def get_contacts_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📞 Позвонить", callback_data="call_phone")],
-        [InlineKeyboardButton("✉️ Написать письмо", callback_data="mail_email")],
         [InlineKeyboardButton("🌐 Открыть сайт", url="https://globalrussia.com")],
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
     ])
@@ -84,7 +86,8 @@ def get_roulette_keyboard(show_spin=True):
     keyboard = []
     if show_spin:
         keyboard.append([InlineKeyboardButton("🎲 Крутить рулетку", callback_data="roulette_spin")])
-    keyboard.append([InlineKeyboardButton("🔄 Крутить ещё раз", callback_data="roulette_spin")])
+    else:
+        keyboard.append([InlineKeyboardButton("🔄 Крутить ещё раз", callback_data="roulette_spin")])
     keyboard.append([InlineKeyboardButton("Обсудить проект", callback_data="project")])
     keyboard.append([InlineKeyboardButton("Проектное предсказание", callback_data="prediction")])
     keyboard.append([InlineKeyboardButton("Главное меню", callback_data="main_menu")])
@@ -95,29 +98,6 @@ def get_prediction_keyboard():
         [InlineKeyboardButton("🔮 Ещё предсказание", callback_data="prediction_spin")],
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
     ])
-
-DESTINATIONS = [
-    "Алтай", "Байкал", "Карелия", "Камчатка", "Сочи", "Крым", "Москва", "Санкт-Петербург",
-    "Казань", "Екатеринбург", "Новосибирск", "Владивосток", "Калининград", "Мурманск",
-    "Архангельск", "Псков", "Великий Новгород", "Суздаль", "Владимир", "Ростов Великий",
-    "Япония", "Китай", "Таиланд", "Вьетнам", "Индия", "ОАЭ", "Турция", "Египет",
-    "Греция", "Италия", "Испания", "Франция", "Германия", "Великобритания", "США",
-    "Мексика", "Бразилия", "Аргентина", "Чили", "Перу", "ЮАР", "Намибия", "Кения",
-    "Танзания", "Мальдивы", "Сейшелы", "Маврикий", "Фиджи", "Бали", "Сингапур"
-]
-
-PREDICTIONS = [
-    "Ваш следующий проект будет связан с Азией – время для ярких впечатлений!",
-    "Европа ждёт вас: культурные столицы и деловые встречи.",
-    "Путешествие в Латинскую Америку принесёт неожиданные возможности.",
-    "Африканские сафари вдохновят вашу команду на новые свершения.",
-    "Острова Индийского океана – идеальное место для тимбилдинга.",
-    "Россия – огромные просторы и новые горизонты для вашего бизнеса.",
-    "Ближний Восток – сочетание роскоши и инноваций.",
-    "Скандинавия – лаконичный дизайн и эффективные решения.",
-    "Выберите нестандартное направление – это принесёт креативные идеи.",
-    "Поездка в горы укрепит командный дух и подарит незабываемые виды."
-]
 
 async def notify_chat(application, user, message, feedback_type):
     if NOTIFICATION_CHAT_ID is None:
@@ -221,22 +201,24 @@ async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=ReplyKeyboardRemove(),
         disable_web_page_preview=True
     )
-    await update.message.reply_text(
+    msg = await update.message.reply_text(
         "Нажмите кнопку, чтобы начать:",
         reply_markup=get_roulette_keyboard(show_spin=True)
     )
+    context.user_data["roulette_message_id"] = msg.message_id
 
 async def prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    pred = random.choice(PREDICTIONS)
     await update.message.reply_text(
+        "Ваше предсказание:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    pred = random.choice(PREDICTIONS)
+    msg = await update.message.reply_text(
         texts["prediction_result"].format(prediction=pred),
-        reply_markup=ReplyKeyboardRemove(),
+        reply_markup=get_prediction_keyboard(),
         parse_mode="Markdown"
     )
-    await update.message.reply_text(
-        "Что дальше?",
-        reply_markup=get_prediction_keyboard()
-    )
+    context.user_data["prediction_message_id"] = msg.message_id
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -250,6 +232,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_main_menu_keyboard()
         )
         context.user_data.pop("awaiting_feedback", None)
+        context.user_data.pop("roulette_message_id", None)
+        context.user_data.pop("prediction_message_id", None)
         return
 
     if data == "cancel_feedback":
@@ -273,21 +257,48 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text("Извините, файл презентации временно недоступен.")
         return
 
-    # Обработка звонка и email
-    if data == "call_phone":
-        await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_text(
-            "📞 Номер для звонка: +7 (812) 385-73-07",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Главное меню", callback_data="main_menu")]])
-        )
+    if data == "roulette_spin":
+        dest = random.choice(DESTINATIONS)
+        message_id = context.user_data.get("roulette_message_id")
+        if message_id:
+            try:
+                await context.bot.edit_message_text(
+                    chat_id=update.effective_chat.id,
+                    message_id=message_id,
+                    text=texts["roulette_result"].format(destination=dest),
+                    reply_markup=get_roulette_keyboard(show_spin=False),
+                    parse_mode="Markdown"
+                )
+            except Exception as e:
+                logger.error(f"Ошибка редактирования рулетки: {e}")
+        else:
+            await query.edit_message_text(
+                texts["roulette_result"].format(destination=dest),
+                reply_markup=get_roulette_keyboard(show_spin=False),
+                parse_mode="Markdown"
+            )
         return
 
-    if data == "mail_email":
-        await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_text(
-            "✉️ Email: info@globalrussia.com",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Главное меню", callback_data="main_menu")]])
-        )
+    if data == "prediction_spin":
+        pred = random.choice(PREDICTIONS)
+        message_id = context.user_data.get("prediction_message_id")
+        if message_id:
+            try:
+                await context.bot.edit_message_text(
+                    chat_id=update.effective_chat.id,
+                    message_id=message_id,
+                    text=texts["prediction_result"].format(prediction=pred),
+                    reply_markup=get_prediction_keyboard(),
+                    parse_mode="Markdown"
+                )
+            except Exception as e:
+                logger.error(f"Ошибка редактирования предсказания: {e}")
+        else:
+            await query.edit_message_text(
+                texts["prediction_result"].format(prediction=pred),
+                reply_markup=get_prediction_keyboard(),
+                parse_mode="Markdown"
+            )
         return
 
     if data == "project":
@@ -320,45 +331,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "roulette":
         await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_text(
-            texts["roulette_intro"],
-            disable_web_page_preview=True
-        )
-        await query.message.reply_text(
-            "Нажмите кнопку, чтобы начать:",
-            reply_markup=get_roulette_keyboard(show_spin=True)
-        )
+        await roulette(update, context)
         return
 
     if data == "prediction":
         await query.edit_message_reply_markup(reply_markup=None)
-        pred = random.choice(PREDICTIONS)
-        await query.message.reply_text(
-            texts["prediction_result"].format(prediction=pred),
-            parse_mode="Markdown"
-        )
-        await query.message.reply_text(
-            "Что дальше?",
-            reply_markup=get_prediction_keyboard()
-        )
-        return
-
-    if data == "roulette_spin":
-        dest = random.choice(DESTINATIONS)
-        await query.edit_message_text(
-            texts["roulette_result"].format(destination=dest),
-            reply_markup=get_roulette_keyboard(show_spin=False),
-            parse_mode="Markdown"
-        )
-        return
-
-    if data == "prediction_spin":
-        pred = random.choice(PREDICTIONS)
-        await query.edit_message_text(
-            texts["prediction_result"].format(prediction=pred),
-            reply_markup=get_prediction_keyboard(),
-            parse_mode="Markdown"
-        )
+        await prediction(update, context)
         return
 
     await query.edit_message_text("Неизвестная команда.")
