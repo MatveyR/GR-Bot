@@ -209,7 +209,7 @@ async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Ваше предсказание:",
+        "🔮 Ваше предсказание:",
         reply_markup=ReplyKeyboardRemove()
     )
     pred = random.choice(PREDICTIONS)
