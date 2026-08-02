@@ -25,7 +25,7 @@ if NOTIFICATION_CHAT_ID:
 
 PRESENTATION_PATH = os.getenv("PRESENTATION_PATH", "presentation.pdf")
 
-with open("texts.json", "r", encoding="utf-8") as f:
+with open("texts_gr.json", "r", encoding="utf-8") as f:
     texts = json.load(f)
 
 logging.basicConfig(level=logging.INFO)
@@ -141,10 +141,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        texts["about"] + "\n\nВыберите действие:",
+        texts["about"],
         reply_markup=ReplyKeyboardRemove(),
-        reply_markup=get_about_keyboard(),
         disable_web_page_preview=True
+    )
+    await update.message.reply_text(
+        "Выберите действие:",
+        reply_markup=get_about_keyboard()
     )
 
 async def project(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -207,32 +210,35 @@ async def partner(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def contacts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        texts["contacts"] + "\n\nСвяжитесь с нами:",
+        texts["contacts"],
         reply_markup=ReplyKeyboardRemove(),
-        reply_markup=get_contacts_keyboard(),
         disable_web_page_preview=True
+    )
+    await update.message.reply_text(
+        "Свяжитесь с нами:",
+        reply_markup=get_contacts_keyboard()
     )
 
 async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        texts["roulette_intro"] + "\n\nНажмите кнопку, чтобы начать:",
+        texts["roulette_intro"],
         reply_markup=ReplyKeyboardRemove(),
         disable_web_page_preview=True
     )
     await update.message.reply_text(
-        "Готовы?",
+        "Нажмите кнопку, чтобы начать:",
         reply_markup=get_roulette_keyboard(show_spin=True)
     )
 
 async def prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pred = random.choice(PREDICTIONS)
     await update.message.reply_text(
-        texts["prediction_result"].format(prediction=pred) + "\n\nЧто дальше?",
+        texts["prediction_result"].format(prediction=pred),
         reply_markup=ReplyKeyboardRemove(),
         parse_mode="Markdown"
     )
     await update.message.reply_text(
-        "Выберите действие:",
+        "Что дальше?",
         reply_markup=get_prediction_keyboard()
     )
 
@@ -304,11 +310,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "roulette":
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(
-            texts["roulette_intro"] + "\n\nНажмите кнопку, чтобы начать:",
+            texts["roulette_intro"],
             disable_web_page_preview=True
         )
         await query.message.reply_text(
-            "Готовы?",
+            "Нажмите кнопку, чтобы начать:",
             reply_markup=get_roulette_keyboard(show_spin=True)
         )
         return
@@ -317,11 +323,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(reply_markup=None)
         pred = random.choice(PREDICTIONS)
         await query.message.reply_text(
-            texts["prediction_result"].format(prediction=pred) + "\n\nЧто дальше?",
+            texts["prediction_result"].format(prediction=pred),
             parse_mode="Markdown"
         )
         await query.message.reply_text(
-            "Выберите действие:",
+            "Что дальше?",
             reply_markup=get_prediction_keyboard()
         )
         return
