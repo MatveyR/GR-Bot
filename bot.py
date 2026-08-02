@@ -13,7 +13,6 @@ from telegram.ext import (
     ContextTypes,
 )
 
-# ========== Загрузка конфигурации ==========
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 NOTIFICATION_CHAT_ID = os.getenv("NOTIFICATION_CHAT_ID")
@@ -26,14 +25,13 @@ if NOTIFICATION_CHAT_ID:
 
 PRESENTATION_PATH = os.getenv("PRESENTATION_PATH", "presentation.pdf")
 
-# Загрузка текстов
-with open("texts.json", "r", encoding="utf-8") as f:
+with open("texts_gr.json", "r", encoding="utf-8") as f:
     texts = json.load(f)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ========== Клавиатура главного меню ==========
+# ========== Главное меню (ReplyKeyboardMarkup) ==========
 def get_main_menu_keyboard():
     keyboard = [
         ["О нас", "Обсудить проект"],
@@ -44,51 +42,45 @@ def get_main_menu_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-# ========== Inline-кнопки ==========
+# ========== Inline-клавиатуры для разделов ==========
 def get_about_keyboard():
-    keyboard = [
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("Скачать презентацию", callback_data="download_presentation")],
         [InlineKeyboardButton("Пригласить в тендер", callback_data="tender")],
         [InlineKeyboardButton("Обсудить проект", callback_data="project")],
         [InlineKeyboardButton("Проектное предсказание", callback_data="prediction")],
         [InlineKeyboardButton("Наш сайт", url="https://globalrussia.com")],
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
-    ]
-    return InlineKeyboardMarkup(keyboard)
+    ])
 
 def get_project_keyboard():
-    keyboard = [
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("Рулетка направлений", callback_data="roulette")],
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
-    ]
-    return InlineKeyboardMarkup(keyboard)
+    ])
 
 def get_tender_keyboard():
-    keyboard = [[InlineKeyboardButton("Главное меню", callback_data="main_menu")]]
-    return InlineKeyboardMarkup(keyboard)
+    return InlineKeyboardMarkup([[InlineKeyboardButton("Главное меню", callback_data="main_menu")]])
 
 def get_presentation_keyboard():
-    keyboard = [
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("Обсудить проект", callback_data="project")],
         [InlineKeyboardButton("Пригласить в тендер", callback_data="tender")],
         [InlineKeyboardButton("Рулетка направлений", callback_data="roulette")],
         [InlineKeyboardButton("Проектное предсказание", callback_data="prediction")],
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
-    ]
-    return InlineKeyboardMarkup(keyboard)
+    ])
 
 def get_partner_keyboard():
-    keyboard = [[InlineKeyboardButton("Главное меню", callback_data="main_menu")]]
-    return InlineKeyboardMarkup(keyboard)
+    return InlineKeyboardMarkup([[InlineKeyboardButton("Главное меню", callback_data="main_menu")]])
 
 def get_contacts_keyboard():
-    keyboard = [
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("📞 Позвонить", url="tel:+78123857307")],
         [InlineKeyboardButton("✉️ Написать письмо", url="mailto:info@globalrussia.com")],
         [InlineKeyboardButton("🌐 Открыть сайт", url="https://globalrussia.com")],
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
-    ]
-    return InlineKeyboardMarkup(keyboard)
+    ])
 
 def get_roulette_keyboard(show_spin=True):
     keyboard = []
@@ -101,13 +93,11 @@ def get_roulette_keyboard(show_spin=True):
     return InlineKeyboardMarkup(keyboard)
 
 def get_prediction_keyboard():
-    keyboard = [
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔮 Ещё предсказание", callback_data="prediction_spin")],
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
-    ]
-    return InlineKeyboardMarkup(keyboard)
+    ])
 
-# ========== Списки для рулетки и предсказаний ==========
 DESTINATIONS = [
     "Алтай", "Байкал", "Карелия", "Камчатка", "Сочи", "Крым", "Москва", "Санкт-Петербург",
     "Казань", "Екатеринбург", "Новосибирск", "Владивосток", "Калининград", "Мурманск",
@@ -131,19 +121,16 @@ PREDICTIONS = [
     "Поездка в горы укрепит командный дух и подарит незабываемые виды."
 ]
 
-# ========== Отправка уведомления в общий чат ==========
 async def notify_chat(application, user, message, feedback_type):
     if NOTIFICATION_CHAT_ID is None:
-        logger.warning("NOTIFICATION_CHAT_ID не задан, уведомление не отправлено")
         return
     text = f"📩 Новое сообщение от @{user.username} (id={user.id}, имя: {user.full_name})\nРаздел: {feedback_type}\n\n{message}"
     try:
         await application.bot.send_message(chat_id=NOTIFICATION_CHAT_ID, text=text)
-        logger.info(f"Уведомление отправлено в чат {NOTIFICATION_CHAT_ID}")
     except Exception as e:
         logger.error(f"Ошибка отправки в чат {NOTIFICATION_CHAT_ID}: {e}")
 
-# ========== Команды ==========
+# ========== Команды и обработчики ==========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         texts["start"],
@@ -197,7 +184,7 @@ async def presentation(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 caption="Презентация агентства Global Russia"
             )
     except FileNotFoundError:
-        await update.message.reply_text("Извините, файл презентации временно недоступен. Попробуйте позже.")
+        await update.message.reply_text("Извините, файл презентации временно недоступен.")
 
 async def partner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["awaiting_feedback"] = True
@@ -234,7 +221,6 @@ async def prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
-# ========== Обработка callback-запросов ==========
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -286,9 +272,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "roulette_spin":
         dest = random.choice(DESTINATIONS)
-        text = texts["roulette_result"].format(destination=dest)
         await query.edit_message_text(
-            text,
+            texts["roulette_result"].format(destination=dest),
             reply_markup=get_roulette_keyboard(show_spin=False),
             parse_mode="Markdown"
         )
@@ -296,9 +281,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "prediction_spin":
         pred = random.choice(PREDICTIONS)
-        text = texts["prediction_result"].format(prediction=pred)
         await query.edit_message_text(
-            text,
+            texts["prediction_result"].format(prediction=pred),
             reply_markup=get_prediction_keyboard(),
             parse_mode="Markdown"
         )
@@ -306,7 +290,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.edit_message_text("Неизвестная команда.")
 
-# ========== Обработка текстовых сообщений ==========
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get("awaiting_feedback"):
         user = update.effective_user
@@ -322,11 +305,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        "Используйте кнопки меню для навигации. Если хотите задать вопрос, выберите соответствующий раздел.",
+        "Используйте кнопки меню для навигации.",
         reply_markup=get_main_menu_keyboard()
     )
 
-# ========== Обработчик главного меню ==========
 async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "О нас":
@@ -353,12 +335,10 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "Проектное предсказание":
         await prediction(update, context)
     else:
-        await update.message.reply_text("Пожалуйста, используйте кнопки меню.")
+        await update.message.reply_text("Пожалуйста, используйте кнопки меню.", reply_markup=get_main_menu_keyboard())
 
-# ========== Запуск ==========
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
-
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("about", about))
     application.add_handler(CommandHandler("project", project))
@@ -373,9 +353,7 @@ def main():
         filters.Regex("^(О нас|Обсудить проект|Пригласить в тендер|Презентация|Задать вопрос Михаилу|Стать подрядчиком|Контакты|Рулетка направлений|Проектное предсказание)$"),
         handle_main_menu
     ))
-
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-
     application.add_handler(CallbackQueryHandler(button_callback))
 
     application.run_polling()
