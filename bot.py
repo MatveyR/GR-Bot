@@ -26,6 +26,7 @@ if NOTIFICATION_CHAT_ID:
 PRESENTATION_PATH = os.getenv("PRESENTATION_PATH", "presentation.pdf")
 ABOUT_PHOTO = os.getenv("ABOUT_PHOTO", "")
 ABOUT_VIDEO_NOTE = os.getenv("ABOUT_VIDEO_NOTE", "")
+CUSTOM_EMOJI_ID = os.getenv("CUSTOM_EMOJI_ID", "")
 
 with open("texts.json", "r", encoding="utf-8") as f:
     texts = json.load(f)
@@ -47,7 +48,6 @@ def get_main_menu_keyboard():
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def get_about_keyboard():
-    # Убрали кнопку "Пригласить в тендер"
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("Скачать презентацию", callback_data="download_presentation")],
         [InlineKeyboardButton("Обсудить проект", callback_data="project")],
@@ -110,16 +110,21 @@ async def notify_chat(application, user, message, feedback_type):
         logger.error(f"Ошибка отправки в чат {NOTIFICATION_CHAT_ID}: {e}")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if CUSTOM_EMOJI_ID:
+        emoji_html = f'<tg-emoji emoji-id="{5217427439688392542}">⭐</tg-emoji>'
+    else:
+        emoji_html = "🌟"
+
+    text = texts["start"].format(custom_emoji=emoji_html)
+
     await update.message.reply_text(
-        texts["start"],
+        text,
         reply_markup=get_main_menu_keyboard(),
-        parse_mode="Markdown",
+        parse_mode="HTML",
         disable_web_page_preview=True
     )
 
 async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Скрываем главное меню
-    # Отправляем фото с текстом в caption (одно сообщение)
     if ABOUT_PHOTO and os.path.exists(ABOUT_PHOTO):
         try:
             with open(ABOUT_PHOTO, "rb") as photo:
@@ -130,14 +135,12 @@ async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
         except Exception as e:
             logger.error(f"Ошибка отправки фото: {e}")
-            # fallback: отправляем текст отдельно
             await update.message.reply_text(
                 texts["about"],
                 reply_markup=ReplyKeyboardRemove(),
                 disable_web_page_preview=True
             )
     else:
-        # Если фото нет, отправляем текст
         await update.message.reply_text(
             texts["about"],
             reply_markup=ReplyKeyboardRemove(),
@@ -145,7 +148,6 @@ async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         logger.warning("Фото для раздела 'О нас' не найдено")
 
-    # Отправляем кружок (видеосообщение)
     if ABOUT_VIDEO_NOTE and os.path.exists(ABOUT_VIDEO_NOTE):
         try:
             with open(ABOUT_VIDEO_NOTE, "rb") as video:
@@ -155,7 +157,6 @@ async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         logger.warning("Видео-кружок для раздела 'О нас' не найден")
 
-    # Отправляем меню с inline-кнопками
     await update.message.reply_text(
         "Выберите действие:",
         reply_markup=get_about_keyboard()
@@ -189,18 +190,22 @@ async def tender(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def presentation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        texts["presentation"],
-        reply_markup=ReplyKeyboardRemove(),
-        parse_mode="Markdown"
+        "Загрузка презентации...",
+        reply_markup=ReplyKeyboardRemove()
     )
+
     try:
         with open(PRESENTATION_PATH, "rb") as f:
             await update.message.reply_document(
                 document=InputFile(f, filename="Global_Russia_Presentation.pdf"),
-                caption="Презентация агентства Global Russia"
+                caption=texts["presentation"]
             )
     except FileNotFoundError:
-        await update.message.reply_text("Извините, файл презентации временно недоступен.")
+        await update.message.reply_text(
+            texts["presentation"] + "\n\nИзвините, файл презентации временно недоступен. Попробуйте позже.",
+            disable_web_page_preview=True
+        )
+
     await update.message.reply_text(
         "Дополнительные действия:",
         reply_markup=get_presentation_keyboard()
@@ -286,7 +291,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with open(PRESENTATION_PATH, "rb") as f:
                 await query.message.reply_document(
                     document=InputFile(f, filename="Global_Russia_Presentation.pdf"),
-                    caption="Презентация агентства Global Russia"
+                    caption=texts["presentation"]
                 )
         except FileNotFoundError:
             await query.message.reply_text("Извините, файл презентации временно недоступен.")
