@@ -118,7 +118,6 @@ async def send_roulette(chat_id, bot, context):
         text="Нажмите кнопку, чтобы начать:",
         reply_markup=get_roulette_keyboard(show_spin=True)
     )
-    # Сохраняем ID сообщения для редактирования
     context.user_data["roulette_message_id"] = msg.message_id
 
 async def send_prediction(chat_id, bot, context):
@@ -230,9 +229,12 @@ async def partner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def contacts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    emoji_html = f'<tg-emoji emoji-id="{CUSTOM_EMOJI_ID}">⭐</tg-emoji>' if CUSTOM_EMOJI_ID else "🌟"
+    text = texts["contacts"].format(custom_emoji=emoji_html)
     await update.message.reply_text(
-        texts["contacts"],
+        text,
         reply_markup=ReplyKeyboardRemove(),
+        parse_mode="HTML",
         disable_web_page_preview=True
     )
     await update.message.reply_text(
