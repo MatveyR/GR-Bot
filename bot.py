@@ -158,7 +158,7 @@ async def project(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["awaiting_feedback"] = True
     context.user_data["feedback_type"] = "Обсуждение проекта"
     await update.message.reply_text(
-        texts["project"] + "\n\n" + texts["ask_message"],
+        texts["project"],
         reply_markup=ReplyKeyboardRemove(),
         disable_web_page_preview=True
     )
@@ -168,7 +168,6 @@ async def project(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def presentation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     try:
         with open(PRESENTATION_PATH, "rb") as f:
             await update.message.reply_document(
@@ -190,7 +189,7 @@ async def partner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["awaiting_feedback"] = True
     context.user_data["feedback_type"] = "Стать подрядчиком"
     await update.message.reply_text(
-        texts["partner"] + "\n\n" + texts["ask_message"] + "\n\nОпишите свою компанию по пунктам выше.",
+        texts["partner"],
         reply_markup=ReplyKeyboardRemove(),
         disable_web_page_preview=True
     )
@@ -320,7 +319,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "project":
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(
-            texts["project"] + "\n\n" + texts["ask_message"],
+            texts["project"],
             disable_web_page_preview=True
         )
         await query.message.reply_text(
