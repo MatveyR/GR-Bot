@@ -115,6 +115,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         emoji_html = f'<tg-emoji emoji-id="{CUSTOM_EMOJI_ID}">⭐</tg-emoji>'
     else:
         emoji_html = "🌟"  # fallback
+        logger.warning("Не удалось добавить эмодзи")
 
     text = texts["start"].format(custom_emoji=emoji_html)
 
