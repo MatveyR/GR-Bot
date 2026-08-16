@@ -37,13 +37,12 @@ PREDICTIONS = texts.get("predictions", [])
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ========== Клавиатуры ==========
 def get_main_menu_keyboard():
     keyboard = [
         ["О нас", "Презентация"],
         ["Обсудить проект", "Задать вопрос Михаилу"],
-        ["Пригласить в тендер", "Стать подрядчиком"],
-        ["Проектное предсказание", "Рулетка направлений"],
-        ["Контакты"],
+        ["Стать подрядчиком", "Контакты"],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -62,13 +61,9 @@ def get_project_keyboard():
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
     ])
 
-def get_tender_keyboard():
-    return InlineKeyboardMarkup([[InlineKeyboardButton("Главное меню", callback_data="main_menu")]])
-
 def get_presentation_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("Обсудить проект", callback_data="project")],
-        [InlineKeyboardButton("Пригласить в тендер", callback_data="tender")],
         [InlineKeyboardButton("Рулетка направлений", callback_data="roulette")],
         [InlineKeyboardButton("Проектное предсказание", callback_data="prediction")],
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
@@ -100,6 +95,7 @@ def get_prediction_keyboard():
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
     ])
 
+# ========== Уведомления ==========
 async def notify_chat(application, user, message, feedback_type):
     if NOTIFICATION_CHAT_ID is None:
         return
@@ -109,16 +105,10 @@ async def notify_chat(application, user, message, feedback_type):
     except Exception as e:
         logger.error(f"Ошибка отправки в чат {NOTIFICATION_CHAT_ID}: {e}")
 
+# ========== Команды ==========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Формируем HTML для кастомного эмодзи
-    if CUSTOM_EMOJI_ID:
-        emoji_html = f'<tg-emoji emoji-id="{CUSTOM_EMOJI_ID}">⭐</tg-emoji>'
-    else:
-        emoji_html = "🌟"  # fallback
-        logger.warning("Не удалось добавить эмодзи")
-
+    emoji_html = f'<tg-emoji emoji-id="{CUSTOM_EMOJI_ID}">⭐</tg-emoji>' if CUSTOM_EMOJI_ID else "🌟"
     text = texts["start"].format(custom_emoji=emoji_html)
-
     await update.message.reply_text(
         text,
         reply_markup=get_main_menu_keyboard(),
@@ -177,19 +167,6 @@ async def project(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена", callback_data="cancel_feedback")]])
     )
 
-async def tender(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["awaiting_feedback"] = True
-    context.user_data["feedback_type"] = "Приглашение в тендер"
-    await update.message.reply_text(
-        texts["tender"] + "\n\n" + texts["ask_message"],
-        reply_markup=ReplyKeyboardRemove(),
-        disable_web_page_preview=True
-    )
-    await update.message.reply_text(
-        "Для отмены нажмите кнопку ниже:",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена", callback_data="cancel_feedback")]])
-    )
-
 async def presentation(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
@@ -204,7 +181,6 @@ async def presentation(update: Update, context: ContextTypes.DEFAULT_TYPE):
             texts["presentation"] + "\n\nИзвините, файл презентации временно недоступен. Попробуйте позже.",
             disable_web_page_preview=True
         )
-
     await update.message.reply_text(
         "Дополнительные действия:",
         reply_markup=get_presentation_keyboard()
@@ -259,6 +235,7 @@ async def prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     context.user_data["prediction_message_id"] = msg.message_id
 
+# ========== Callback-обработчик ==========
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -354,20 +331,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["feedback_type"] = "Обсуждение проекта"
         return
 
-    if data == "tender":
-        await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_text(
-            texts["tender"] + "\n\n" + texts["ask_message"],
-            disable_web_page_preview=True
-        )
-        await query.message.reply_text(
-            "Для отмены нажмите кнопку ниже:",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена", callback_data="cancel_feedback")]])
-        )
-        context.user_data["awaiting_feedback"] = True
-        context.user_data["feedback_type"] = "Приглашение в тендер"
-        return
-
     if data == "roulette":
         await query.edit_message_reply_markup(reply_markup=None)
         await roulette(update, context)
@@ -380,6 +343,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.edit_message_text("Неизвестная команда.")
 
+# ========== Обработка текста ==========
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get("awaiting_feedback"):
         user = update.effective_user
@@ -418,14 +382,8 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             texts["ask_message"],
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена", callback_data="cancel_feedback")]])
         )
-    elif text == "Пригласить в тендер":
-        await tender(update, context)
     elif text == "Стать подрядчиком":
         await partner(update, context)
-    elif text == "Проектное предсказание":
-        await prediction(update, context)
-    elif text == "Рулетка направлений":
-        await roulette(update, context)
     elif text == "Контакты":
         await contacts(update, context)
     else:
@@ -434,12 +392,12 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_main_menu_keyboard()
         )
 
+# ========== Запуск ==========
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("about", about))
     application.add_handler(CommandHandler("project", project))
-    application.add_handler(CommandHandler("tender", tender))
     application.add_handler(CommandHandler("presentation", presentation))
     application.add_handler(CommandHandler("partner", partner))
     application.add_handler(CommandHandler("contacts", contacts))
@@ -447,7 +405,7 @@ def main():
     application.add_handler(CommandHandler("prediction", prediction))
 
     application.add_handler(MessageHandler(
-        filters.Regex("^(О нас|Презентация|Обсудить проект|Задать вопрос Михаилу|Пригласить в тендер|Стать подрядчиком|Проектное предсказание|Рулетка направлений|Контакты)$"),
+        filters.Regex("^(О нас|Презентация|Обсудить проект|Задать вопрос Михаилу|Стать подрядчиком|Контакты)$"),
         handle_main_menu
     ))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
