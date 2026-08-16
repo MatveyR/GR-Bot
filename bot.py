@@ -105,6 +105,37 @@ async def notify_chat(application, user, message, feedback_type):
     except Exception as e:
         logger.error(f"Ошибка отправки в чат {NOTIFICATION_CHAT_ID}: {e}")
 
+# ========== Вспомогательные функции для рулетки и предсказаний ==========
+async def send_roulette(chat_id, bot, context):
+    """Отправляет интерфейс рулетки в указанный чат."""
+    await bot.send_message(
+        chat_id=chat_id,
+        text=texts["roulette_intro"],
+        disable_web_page_preview=True
+    )
+    msg = await bot.send_message(
+        chat_id=chat_id,
+        text="Нажмите кнопку, чтобы начать:",
+        reply_markup=get_roulette_keyboard(show_spin=True)
+    )
+    # Сохраняем ID сообщения для редактирования
+    context.user_data["roulette_message_id"] = msg.message_id
+
+async def send_prediction(chat_id, bot, context):
+    """Отправляет предсказание в указанный чат."""
+    await bot.send_message(
+        chat_id=chat_id,
+        text="Ваше предсказание:"
+    )
+    pred = random.choice(PREDICTIONS)
+    msg = await bot.send_message(
+        chat_id=chat_id,
+        text=texts["prediction_result"].format(prediction=pred),
+        reply_markup=get_prediction_keyboard(),
+        parse_mode="Markdown"
+    )
+    context.user_data["prediction_message_id"] = msg.message_id
+
 # ========== Команды ==========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     emoji_html = f'<tg-emoji emoji-id="{CUSTOM_EMOJI_ID}">⭐</tg-emoji>' if CUSTOM_EMOJI_ID else "🌟"
@@ -210,29 +241,10 @@ async def contacts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        texts["roulette_intro"],
-        reply_markup=ReplyKeyboardRemove(),
-        disable_web_page_preview=True
-    )
-    msg = await update.message.reply_text(
-        "Нажмите кнопку, чтобы начать:",
-        reply_markup=get_roulette_keyboard(show_spin=True)
-    )
-    context.user_data["roulette_message_id"] = msg.message_id
+    await send_roulette(update.effective_chat.id, context.bot, context)
 
 async def prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Ваше предсказание:",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    pred = random.choice(PREDICTIONS)
-    msg = await update.message.reply_text(
-        texts["prediction_result"].format(prediction=pred),
-        reply_markup=get_prediction_keyboard(),
-        parse_mode="Markdown"
-    )
-    context.user_data["prediction_message_id"] = msg.message_id
+    await send_prediction(update.effective_chat.id, context.bot, context)
 
 # ========== Callback-обработчик ==========
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -332,12 +344,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "roulette":
         await query.edit_message_reply_markup(reply_markup=None)
-        await roulette(update, context)
+        await send_roulette(query.message.chat_id, context.bot, context)
         return
 
     if data == "prediction":
         await query.edit_message_reply_markup(reply_markup=None)
-        await prediction(update, context)
+        await send_prediction(query.message.chat_id, context.bot, context)
         return
 
     await query.edit_message_text("Неизвестная команда.")
