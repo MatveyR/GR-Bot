@@ -106,9 +106,8 @@ async def notify_chat(application, user, message, feedback_type):
     except Exception as e:
         logger.error(f"Ошибка отправки в чат {NOTIFICATION_CHAT_ID}: {e}")
 
-# ========== Вспомогательные функции для рулетки и предсказаний ==========
+# ========== Вспомогательные функции ==========
 async def send_roulette(chat_id, bot, context):
-    """Отправляет интерфейс рулетки в указанный чат."""
     await bot.send_message(
         chat_id=chat_id,
         text=texts["roulette_intro"],
@@ -116,17 +115,12 @@ async def send_roulette(chat_id, bot, context):
     )
     msg = await bot.send_message(
         chat_id=chat_id,
-        text="Нажмите кнопку, чтобы начать:",
+        text="",
         reply_markup=get_roulette_keyboard(show_spin=True)
     )
     context.user_data["roulette_message_id"] = msg.message_id
 
 async def send_prediction(chat_id, bot, context):
-    """Отправляет предсказание в указанный чат."""
-    await bot.send_message(
-        chat_id=chat_id,
-        text="Ваше предсказание:"
-    )
     pred = random.choice(PREDICTIONS)
     msg = await bot.send_message(
         chat_id=chat_id,
@@ -181,7 +175,7 @@ async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.warning("Видео-кружок для раздела 'О нас' не найден")
 
     await update.message.reply_text(
-        "Выберите действие:",
+        "",
         reply_markup=get_about_keyboard()
     )
 
@@ -212,7 +206,7 @@ async def presentation(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True
         )
     await update.message.reply_text(
-        "Дополнительные действия:",
+        "",
         reply_markup=get_presentation_keyboard()
     )
 
@@ -239,7 +233,7 @@ async def contacts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         disable_web_page_preview=True
     )
     await update.message.reply_text(
-        "Свяжитесь с нами:",
+        "",
         reply_markup=get_contacts_keyboard()
     )
 
@@ -258,7 +252,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "main_menu":
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(
-            "Главное меню:",
+            "",  # пустой текст
             reply_markup=get_main_menu_keyboard()
         )
         context.user_data.pop("awaiting_feedback", None)
