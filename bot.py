@@ -27,6 +27,7 @@ PRESENTATION_PATH = os.getenv("PRESENTATION_PATH", "presentation.pdf")
 ABOUT_PHOTO = os.getenv("ABOUT_PHOTO", "")
 ABOUT_VIDEO_NOTE = os.getenv("ABOUT_VIDEO_NOTE", "")
 CUSTOM_EMOJI_ID = os.getenv("CUSTOM_EMOJI_ID", "")
+CONTACTS_EMOJI_ID = os.getenv("CONTACTS_EMOJI_ID", "")
 
 with open("texts.json", "r", encoding="utf-8") as f:
     texts = json.load(f)
@@ -229,7 +230,7 @@ async def partner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def contacts(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    emoji_html = f'<tg-emoji emoji-id="{CUSTOM_EMOJI_ID}">⭐</tg-emoji>' if CUSTOM_EMOJI_ID else "🌟"
+    emoji_html = f'<tg-emoji emoji-id="{CONTACTS_EMOJI_ID}">⭐</tg-emoji>' if CONTACTS_EMOJI_ID else "🌟"
     text = texts["contacts"].format(custom_emoji=emoji_html)
     await update.message.reply_text(
         text,
