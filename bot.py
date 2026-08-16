@@ -24,11 +24,12 @@ if NOTIFICATION_CHAT_ID:
         NOTIFICATION_CHAT_ID = None
 
 PRESENTATION_PATH = os.getenv("PRESENTATION_PATH", "presentation.pdf")
+ABOUT_PHOTO = os.getenv("ABOUT_PHOTO", "")
+ABOUT_VIDEO_NOTE = os.getenv("ABOUT_VIDEO_NOTE", "")
 
 with open("texts.json", "r", encoding="utf-8") as f:
     texts = json.load(f)
 
-# Извлекаем списки из текстов
 DESTINATIONS = texts.get("destinations", [])
 PREDICTIONS = texts.get("predictions", [])
 
@@ -46,9 +47,9 @@ def get_main_menu_keyboard():
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def get_about_keyboard():
+    # Убрали кнопку "Пригласить в тендер"
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("Скачать презентацию", callback_data="download_presentation")],
-        [InlineKeyboardButton("Пригласить в тендер", callback_data="tender")],
         [InlineKeyboardButton("Обсудить проект", callback_data="project")],
         [InlineKeyboardButton("Проектное предсказание", callback_data="prediction")],
         [InlineKeyboardButton("Наш сайт", url="https://globalrussia.com")],
@@ -112,15 +113,40 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         texts["start"],
         reply_markup=get_main_menu_keyboard(),
+        parse_mode="Markdown",
         disable_web_page_preview=True
     )
 
 async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Скрываем главное меню
     await update.message.reply_text(
         texts["about"],
         reply_markup=ReplyKeyboardRemove(),
         disable_web_page_preview=True
     )
+
+    # Отправляем фото, если указан путь
+    if ABOUT_PHOTO and os.path.exists(ABOUT_PHOTO):
+        try:
+            with open(ABOUT_PHOTO, "rb") as photo:
+                await update.message.reply_photo(photo=photo)
+        except Exception as e:
+            logger.error(f"Ошибка отправки фото: {e}")
+    else:
+        logger.warning("Фото для раздела 'О нас' не найдено")
+
+    # Отправляем кружок, если указан путь
+    if ABOUT_VIDEO_NOTE and os.path.exists(ABOUT_VIDEO_NOTE):
+        try:
+            with open(ABOUT_VIDEO_NOTE, "rb") as video:
+                # Видеосообщение (кружок) – отправляем как video_note
+                await update.message.reply_video_note(video_note=video)
+        except Exception as e:
+            logger.error(f"Ошибка отправки кружка: {e}")
+    else:
+        logger.warning("Видео-кружок для раздела 'О нас' не найден")
+
+    # Отправляем меню с inline-кнопками
     await update.message.reply_text(
         "Выберите действие:",
         reply_markup=get_about_keyboard()
@@ -209,7 +235,7 @@ async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🔮 Ваше предсказание:",
+        "Ваше предсказание:",
         reply_markup=ReplyKeyboardRemove()
     )
     pred = random.choice(PREDICTIONS)
