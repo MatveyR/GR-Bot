@@ -126,8 +126,7 @@ async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_photo(
                     photo=photo,
                     caption=texts["about"],
-                    reply_markup=ReplyKeyboardRemove(),  # скрываем клавиатуру
-                    disable_web_page_preview=True
+                    reply_markup=ReplyKeyboardRemove()
                 )
         except Exception as e:
             logger.error(f"Ошибка отправки фото: {e}")
