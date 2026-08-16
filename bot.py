@@ -115,6 +115,10 @@ async def send_roulette(chat_id, bot, context):
     context.user_data["roulette_message_id"] = msg.message_id
 
 async def send_prediction(chat_id, bot, context):
+    await bot.send_message(
+        chat_id=chat_id,
+        text="🔮:"
+    )
     pred = random.choice(PREDICTIONS)
     msg = await bot.send_message(
         chat_id=chat_id,
@@ -261,6 +265,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "download_presentation":
+        # Убираем кнопки из текущего сообщения (меню "О нас")
+        await query.edit_message_reply_markup(reply_markup=None)
         try:
             with open(PRESENTATION_PATH, "rb") as f:
                 await query.message.reply_document(
@@ -268,7 +274,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     caption=texts["presentation"]
                 )
         except FileNotFoundError:
-            await query.message.reply_text("Извините, файл презентации временно недоступен.")
+            await query.message.reply_text(
+                texts["presentation"] + "\n\nИзвините, файл презентации временно недоступен. Попробуйте позже."
+            )
+        # Отправляем дополнительное меню
+        await query.message.reply_text(
+            "Дополнительные действия:",
+            reply_markup=get_presentation_keyboard()
+        )
         return
 
     if data == "roulette_spin":
