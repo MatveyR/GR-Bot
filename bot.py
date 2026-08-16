@@ -191,16 +191,13 @@ async def tender(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def presentation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Загрузка презентации...",
-        reply_markup=ReplyKeyboardRemove()
-    )
 
     try:
         with open(PRESENTATION_PATH, "rb") as f:
             await update.message.reply_document(
                 document=InputFile(f, filename="Global_Russia_Presentation.pdf"),
-                caption=texts["presentation"]
+                caption=texts["presentation"],
+                reply_markup=ReplyKeyboardRemove()
             )
     except FileNotFoundError:
         await update.message.reply_text(
