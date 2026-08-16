@@ -119,27 +119,37 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Скрываем главное меню
-    await update.message.reply_text(
-        texts["about"],
-        reply_markup=ReplyKeyboardRemove(),
-        disable_web_page_preview=True
-    )
-
-    # Отправляем фото, если указан путь
+    # Отправляем фото с текстом в caption (одно сообщение)
     if ABOUT_PHOTO and os.path.exists(ABOUT_PHOTO):
         try:
             with open(ABOUT_PHOTO, "rb") as photo:
-                await update.message.reply_photo(photo=photo)
+                await update.message.reply_photo(
+                    photo=photo,
+                    caption=texts["about"],
+                    reply_markup=ReplyKeyboardRemove(),  # скрываем клавиатуру
+                    disable_web_page_preview=True
+                )
         except Exception as e:
             logger.error(f"Ошибка отправки фото: {e}")
+            # fallback: отправляем текст отдельно
+            await update.message.reply_text(
+                texts["about"],
+                reply_markup=ReplyKeyboardRemove(),
+                disable_web_page_preview=True
+            )
     else:
+        # Если фото нет, отправляем текст
+        await update.message.reply_text(
+            texts["about"],
+            reply_markup=ReplyKeyboardRemove(),
+            disable_web_page_preview=True
+        )
         logger.warning("Фото для раздела 'О нас' не найдено")
 
-    # Отправляем кружок, если указан путь
+    # Отправляем кружок (видеосообщение)
     if ABOUT_VIDEO_NOTE and os.path.exists(ABOUT_VIDEO_NOTE):
         try:
             with open(ABOUT_VIDEO_NOTE, "rb") as video:
-                # Видеосообщение (кружок) – отправляем как video_note
                 await update.message.reply_video_note(video_note=video)
         except Exception as e:
             logger.error(f"Ошибка отправки кружка: {e}")
