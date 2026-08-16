@@ -73,12 +73,6 @@ def get_presentation_keyboard():
 def get_partner_keyboard():
     return InlineKeyboardMarkup([[InlineKeyboardButton("Главное меню", callback_data="main_menu")]])
 
-def get_contacts_keyboard():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🌐 Открыть сайт", url="https://globalrussia.com")],
-        [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
-    ])
-
 def get_roulette_keyboard(show_spin=True):
     keyboard = []
     if show_spin:
@@ -106,9 +100,8 @@ async def notify_chat(application, user, message, feedback_type):
     except Exception as e:
         logger.error(f"Ошибка отправки в чат {NOTIFICATION_CHAT_ID}: {e}")
 
-# ========== Вспомогательные функции для рулетки и предсказаний ==========
+# ========== Вспомогательные функции ==========
 async def send_roulette(chat_id, bot, context):
-    """Отправляет интерфейс рулетки в указанный чат."""
     await bot.send_message(
         chat_id=chat_id,
         text=texts["roulette_intro"],
@@ -122,11 +115,6 @@ async def send_roulette(chat_id, bot, context):
     context.user_data["roulette_message_id"] = msg.message_id
 
 async def send_prediction(chat_id, bot, context):
-    """Отправляет предсказание в указанный чат."""
-    await bot.send_message(
-        chat_id=chat_id,
-        text="Ваше предсказание:"
-    )
     pred = random.choice(PREDICTIONS)
     msg = await bot.send_message(
         chat_id=chat_id,
@@ -234,14 +222,10 @@ async def contacts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = texts["contacts"].format(custom_emoji=emoji_html)
     await update.message.reply_text(
         text,
-        reply_markup=ReplyKeyboardRemove(),
         parse_mode="HTML",
         disable_web_page_preview=True
     )
-    await update.message.reply_text(
-        "Свяжитесь с нами:",
-        reply_markup=get_contacts_keyboard()
-    )
+    # Главное меню остаётся видимым
 
 async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_roulette(update.effective_chat.id, context.bot, context)
