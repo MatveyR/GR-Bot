@@ -110,10 +110,11 @@ async def notify_chat(application, user, message, feedback_type):
         logger.error(f"Ошибка отправки в чат {NOTIFICATION_CHAT_ID}: {e}")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Формируем HTML для кастомного эмодзи
     if CUSTOM_EMOJI_ID:
-        emoji_html = f'<tg-emoji emoji-id="{5217427439688392542}">⭐</tg-emoji>'
+        emoji_html = f'<tg-emoji emoji-id="{CUSTOM_EMOJI_ID}">⭐</tg-emoji>'
     else:
-        emoji_html = "🌟"
+        emoji_html = "🌟"  # fallback
 
     text = texts["start"].format(custom_emoji=emoji_html)
 
