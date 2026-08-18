@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 
 # ========== Сжатие фото ==========
-def compress_image(image_path, max_size_mb=1, max_dimension=2048):
+def compress_image(image_path, max_size_mb=5, max_dimension=2048):
     """
     Сжимает изображение до указанного размера в мегабайтах и максимального разрешения.
     Возвращает BytesIO объект с сжатым изображением.
