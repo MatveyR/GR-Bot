@@ -333,7 +333,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(
             texts["project"],
-            disable_web_page_preview=True
+            disable_web_page_preview=True,
+            parse_mode="HTML"
         )
         await query.message.reply_text(
             "Для отмены нажмите кнопку ниже:",
