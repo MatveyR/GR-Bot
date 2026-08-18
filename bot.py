@@ -33,7 +33,6 @@ ROULETTE_PHOTOS_PATH = os.getenv("ROULETTE_PHOTOS_PATH", "")
 with open("texts.json", "r", encoding="utf-8") as f:
     texts = json.load(f)
 
-# Новый список направлений для рулетки
 ROULETTE_DESTINATIONS = texts.get("roulette_destinations", [])
 PREDICTIONS = texts.get("predictions", [])
 
@@ -104,7 +103,6 @@ async def notify_chat(application, user, message, feedback_type):
 
 # ========== Вспомогательные функции ==========
 async def send_roulette(chat_id, bot, context):
-    """Отправляет приветствие рулетки и кнопку 'Крутить рулетку'."""
     await bot.send_message(
         chat_id=chat_id,
         text=texts["roulette_intro"],
@@ -116,8 +114,8 @@ async def send_roulette(chat_id, bot, context):
         reply_markup=get_roulette_keyboard(show_spin=True)
     )
 
-async def send_roulette_result(chat_id, bot, context):
-    """Выбирает случайное направление и отправляет карточку (фото+текст или просто текст)."""
+async def send_roulette_result(chat_id, bot, context, is_first=False):
+    """Отправляет карточку направления. Если is_first=True, то сохраняет ID для последующего редактирования."""
     if not ROULETTE_DESTINATIONS:
         await bot.send_message(chat_id=chat_id, text="Извините, список направлений пока пуст.")
         return
@@ -127,10 +125,8 @@ async def send_roulette_result(chat_id, bot, context):
     text_desc = dest.get("text", "")
     photo_file = dest.get("photo", "")
 
-    # Формируем полный текст: название + описание + ссылка на сайт (уже включена в описание)
     full_text = f"*{name}*\n\n{text_desc}"
 
-    # Проверяем наличие фото
     photo_path = None
     if photo_file and ROULETTE_PHOTOS_PATH:
         photo_path = os.path.join(ROULETTE_PHOTOS_PATH, photo_file)
@@ -138,33 +134,45 @@ async def send_roulette_result(chat_id, bot, context):
             photo_path = None
 
     if photo_path:
-        # Отправляем фото с подписью
         try:
             with open(photo_path, "rb") as f:
-                await bot.send_photo(
+                msg = await bot.send_photo(
                     chat_id=chat_id,
                     photo=f,
                     caption=full_text,
-                    reply_markup=get_roulette_keyboard(show_spin=False),
+                    reply_markup=get_roulette_keyboard(show_spin=False) if is_first else None,
                     parse_mode="Markdown"
                 )
         except Exception as e:
             logger.error(f"Ошибка отправки фото: {e}")
-            # fallback: отправляем текст
-            await bot.send_message(
+            msg = await bot.send_message(
                 chat_id=chat_id,
                 text=full_text,
-                reply_markup=get_roulette_keyboard(show_spin=False),
+                reply_markup=get_roulette_keyboard(show_spin=False) if is_first else None,
                 parse_mode="Markdown"
             )
     else:
-        # Отправляем только текст
-        await bot.send_message(
+        msg = await bot.send_message(
             chat_id=chat_id,
             text=full_text,
-            reply_markup=get_roulette_keyboard(show_spin=False),
+            reply_markup=get_roulette_keyboard(show_spin=False) if is_first else None,
             parse_mode="Markdown"
         )
+
+    if is_first:
+        context.user_data["last_roulette_message_id"] = msg.message_id
+    else:
+        old_msg_id = context.user_data.get("last_roulette_message_id")
+        if old_msg_id:
+            try:
+                await bot.edit_message_reply_markup(
+                    chat_id=chat_id,
+                    message_id=old_msg_id,
+                    reply_markup=None
+                )
+            except Exception as e:
+                logger.error(f"Ошибка удаления кнопок из старого сообщения: {e}")
+        context.user_data["last_roulette_message_id"] = msg.message_id
 
 async def send_prediction(chat_id, bot, context):
     await bot.send_message(
@@ -304,6 +312,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         context.user_data.pop("awaiting_feedback", None)
         context.user_data.pop("prediction_message_id", None)
+        context.user_data.pop("last_roulette_message_id", None)
         return
 
     if data == "cancel_feedback":
@@ -335,8 +344,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "roulette_spin":
-        # Отправляем новое сообщение с направлением
-        await send_roulette_result(query.message.chat_id, context.bot, context)
+        is_first = context.user_data.get("last_roulette_message_id") is None
+        await send_roulette_result(query.message.chat_id, context.bot, context, is_first)
         return
 
     if data == "prediction_spin":
