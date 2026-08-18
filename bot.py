@@ -2,8 +2,11 @@ import os
 import json
 import logging
 import random
+import io
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove, InputFile
+from PIL import Image
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove, \
+    InputFile
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -39,6 +42,37 @@ PREDICTIONS = texts.get("predictions", [])
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+# ========== Сжатие фото ==========
+def compress_image(image_path, max_size_mb=5, max_dimension=2048):
+    """
+    Сжимает изображение до указанного размера в мегабайтах и максимального разрешения.
+    Возвращает BytesIO объект с сжатым изображением.
+    """
+    with Image.open(image_path) as img:
+        if img.mode in ('RGBA', 'LA', 'P'):
+            img = img.convert('RGB')
+
+        ratio = 1.0
+        if img.width > max_dimension or img.height > max_dimension:
+            ratio = min(max_dimension / img.width, max_dimension / img.height)
+            new_size = (int(img.width * ratio), int(img.height * ratio))
+            img = img.resize(new_size, Image.Resampling.LANCZOS)
+
+        quality = 95
+        output = io.BytesIO()
+        while quality > 10:
+            output.seek(0)
+            output.truncate()
+            img.save(output, format='JPEG', quality=quality, optimize=True)
+            size_mb = output.getbuffer().nbytes / (1024 * 1024)
+            if size_mb <= max_size_mb:
+                break
+            quality -= 5
+        output.seek(0)
+        return output
+
+
 # ========== Клавиатуры ==========
 def get_main_menu_keyboard():
     keyboard = [
@@ -47,6 +81,7 @@ def get_main_menu_keyboard():
         ["Стать подрядчиком", "Контакты"],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
 
 def get_about_keyboard():
     return InlineKeyboardMarkup([
@@ -57,11 +92,13 @@ def get_about_keyboard():
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
     ])
 
+
 def get_project_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("Рулетка направлений", callback_data="roulette")],
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
     ])
+
 
 def get_presentation_keyboard():
     return InlineKeyboardMarkup([
@@ -71,8 +108,10 @@ def get_presentation_keyboard():
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
     ])
 
+
 def get_partner_keyboard():
     return InlineKeyboardMarkup([[InlineKeyboardButton("Главное меню", callback_data="main_menu")]])
+
 
 def get_roulette_keyboard(show_spin=True):
     keyboard = []
@@ -85,11 +124,13 @@ def get_roulette_keyboard(show_spin=True):
     keyboard.append([InlineKeyboardButton("Главное меню", callback_data="main_menu")])
     return InlineKeyboardMarkup(keyboard)
 
+
 def get_prediction_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🪄 Ещё предсказание", callback_data="prediction_spin")],
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
     ])
+
 
 # ========== Уведомления ==========
 async def notify_chat(application, user, message, feedback_type):
@@ -100,6 +141,7 @@ async def notify_chat(application, user, message, feedback_type):
         await application.bot.send_message(chat_id=NOTIFICATION_CHAT_ID, text=text)
     except Exception as e:
         logger.error(f"Ошибка отправки в чат {NOTIFICATION_CHAT_ID}: {e}")
+
 
 # ========== Вспомогательные функции ==========
 async def send_roulette(chat_id, bot, context):
@@ -114,8 +156,9 @@ async def send_roulette(chat_id, bot, context):
         reply_markup=get_roulette_keyboard(show_spin=True)
     )
 
-async def send_roulette_result(chat_id, bot, context, is_first=False):
-    """Отправляет карточку направления. Если is_first=True, то сохраняет ID для последующего редактирования."""
+
+async def send_roulette_result(chat_id, bot, context):
+    """Отправляет карточку направления с кнопками, убирая кнопки у предыдущего сообщения."""
     if not ROULETTE_DESTINATIONS:
         await bot.send_message(chat_id=chat_id, text="Извините, список направлений пока пуст.")
         return
@@ -135,44 +178,56 @@ async def send_roulette_result(chat_id, bot, context, is_first=False):
 
     if photo_path:
         try:
-            with open(photo_path, "rb") as f:
-                msg = await bot.send_photo(
-                    chat_id=chat_id,
-                    photo=f,
-                    caption=full_text,
-                    reply_markup=get_roulette_keyboard(show_spin=False) if is_first else None,
-                    parse_mode="Markdown"
-                )
-        except Exception as e:
-            logger.error(f"Ошибка отправки фото: {e}")
-            msg = await bot.send_message(
+            compressed = compress_image(photo_path, max_size_mb=5, max_dimension=2048)
+            msg = await bot.send_photo(
                 chat_id=chat_id,
-                text=full_text,
-                reply_markup=get_roulette_keyboard(show_spin=False) if is_first else None,
+                photo=compressed,
+                caption=full_text,
+                reply_markup=get_roulette_keyboard(show_spin=False),
                 parse_mode="Markdown"
             )
+        except Exception as e:
+            logger.error(f"Ошибка отправки фото: {e}")
+            try:
+                with open(photo_path, "rb") as f:
+                    msg = await bot.send_document(
+                        chat_id=chat_id,
+                        document=InputFile(f, filename=photo_file),
+                        caption=full_text,
+                        reply_markup=get_roulette_keyboard(show_spin=False),
+                        parse_mode="Markdown"
+                    )
+            except Exception as e2:
+                logger.error(f"Ошибка отправки документа: {e2}")
+                msg = await bot.send_message(
+                    chat_id=chat_id,
+                    text=full_text,
+                    reply_markup=get_roulette_keyboard(show_spin=False),
+                    parse_mode="Markdown"
+                )
     else:
         msg = await bot.send_message(
             chat_id=chat_id,
             text=full_text,
-            reply_markup=get_roulette_keyboard(show_spin=False) if is_first else None,
+            reply_markup=get_roulette_keyboard(show_spin=False),
             parse_mode="Markdown"
         )
 
-    if is_first:
-        context.user_data["last_roulette_message_id"] = msg.message_id
-    else:
-        old_msg_id = context.user_data.get("last_roulette_message_id")
-        if old_msg_id:
-            try:
-                await bot.edit_message_reply_markup(
-                    chat_id=chat_id,
-                    message_id=old_msg_id,
-                    reply_markup=None
-                )
-            except Exception as e:
-                logger.error(f"Ошибка удаления кнопок из старого сообщения: {e}")
-        context.user_data["last_roulette_message_id"] = msg.message_id
+    # Убираем кнопки у предыдущего сообщения, если оно есть
+    old_msg_id = context.user_data.get("last_roulette_message_id")
+    if old_msg_id:
+        try:
+            await bot.edit_message_reply_markup(
+                chat_id=chat_id,
+                message_id=old_msg_id,
+                reply_markup=None
+            )
+        except Exception as e:
+            # Игнорируем ошибку "Message is not modified" и другие
+            logger.debug(f"Не удалось убрать кнопки у старого сообщения: {e}")
+    # Сохраняем ID нового сообщения как последнее
+    context.user_data["last_roulette_message_id"] = msg.message_id
+
 
 async def send_prediction(chat_id, bot, context):
     await bot.send_message(
@@ -188,6 +243,7 @@ async def send_prediction(chat_id, bot, context):
     )
     context.user_data["prediction_message_id"] = msg.message_id
 
+
 # ========== Команды ==========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     emoji_html = f'<tg-emoji emoji-id="{CUSTOM_EMOJI_ID}">⭐</tg-emoji>' if CUSTOM_EMOJI_ID else "🌟"
@@ -198,6 +254,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
         disable_web_page_preview=True
     )
+
 
 async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if ABOUT_PHOTO and os.path.exists(ABOUT_PHOTO):
@@ -237,6 +294,7 @@ async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=get_about_keyboard()
     )
 
+
 async def project(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["awaiting_feedback"] = True
     context.user_data["feedback_type"] = "Обсуждение проекта"
@@ -250,6 +308,7 @@ async def project(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Для отмены нажмите кнопку ниже:",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена", callback_data="cancel_feedback")]])
     )
+
 
 async def presentation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -269,6 +328,7 @@ async def presentation(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=get_presentation_keyboard()
     )
 
+
 async def partner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["awaiting_feedback"] = True
     context.user_data["feedback_type"] = "Стать подрядчиком"
@@ -282,6 +342,7 @@ async def partner(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена", callback_data="cancel_feedback")]])
     )
 
+
 async def contacts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     emoji_html = f'<tg-emoji emoji-id="{CONTACTS_EMOJI_ID}">⭐</tg-emoji>' if CONTACTS_EMOJI_ID else "🌟"
     text = texts["contacts"].format(custom_emoji=emoji_html)
@@ -290,13 +351,15 @@ async def contacts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
         disable_web_page_preview=True
     )
-    # Главное меню остаётся видимым
+
 
 async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_roulette(update.effective_chat.id, context.bot, context)
 
+
 async def prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_prediction(update.effective_chat.id, context.bot, context)
+
 
 # ========== Callback-обработчик ==========
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -344,8 +407,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "roulette_spin":
-        is_first = context.user_data.get("last_roulette_message_id") is None
-        await send_roulette_result(query.message.chat_id, context.bot, context, is_first)
+        await send_roulette_result(query.message.chat_id, context.bot, context)
         return
 
     if data == "prediction_spin":
@@ -397,6 +459,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.edit_message_text("Неизвестная команда.")
 
+
 # ========== Обработка текста ==========
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get("awaiting_feedback"):
@@ -416,6 +479,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Используйте кнопки меню для навигации.",
         reply_markup=get_main_menu_keyboard()
     )
+
 
 async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
@@ -446,6 +510,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_main_menu_keyboard()
         )
 
+
 # ========== Запуск ==========
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
@@ -466,6 +531,7 @@ def main():
     application.add_handler(CallbackQueryHandler(button_callback))
 
     application.run_polling()
+
 
 if __name__ == "__main__":
     main()
