@@ -43,13 +43,31 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# ========== Сжатие фото ==========
-def compress_image(image_path, max_size_mb=5, max_dimension=2048):
-    """
-    Сжимает изображение до указанного размера в мегабайтах и максимального разрешения.
-    Возвращает BytesIO объект с сжатым изображением.
-    """
+# ========== Сжатие фото с EXIF-поворотом ==========
+def compress_image(image_path, max_size_mb=1, max_dimension=2048):
     with Image.open(image_path) as img:
+        # Обработка EXIF-ориентации
+        try:
+            exif = img._getexif()
+            if exif:
+                orientation = exif.get(0x0112)
+                if orientation == 2:
+                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                elif orientation == 3:
+                    img = img.rotate(180, expand=True)
+                elif orientation == 4:
+                    img = img.transpose(Image.FLIP_TOP_BOTTOM)
+                elif orientation == 5:
+                    img = img.rotate(-90, expand=True).transpose(Image.FLIP_LEFT_RIGHT)
+                elif orientation == 6:
+                    img = img.rotate(-90, expand=True)
+                elif orientation == 7:
+                    img = img.rotate(90, expand=True).transpose(Image.FLIP_LEFT_RIGHT)
+                elif orientation == 8:
+                    img = img.rotate(90, expand=True)
+        except Exception as e:
+            logger.debug(f"Не удалось обработать EXIF: {e}")
+
         if img.mode in ('RGBA', 'LA', 'P'):
             img = img.convert('RGB')
 
@@ -158,7 +176,6 @@ async def send_roulette(chat_id, bot, context):
 
 
 async def send_roulette_result(chat_id, bot, context):
-    """Отправляет карточку направления с кнопками, убирая кнопки у предыдущего сообщения."""
     if not ROULETTE_DESTINATIONS:
         await bot.send_message(chat_id=chat_id, text="Извините, список направлений пока пуст.")
         return
@@ -174,11 +191,17 @@ async def send_roulette_result(chat_id, bot, context):
     if photo_file and ROULETTE_PHOTOS_PATH:
         photo_path = os.path.join(ROULETTE_PHOTOS_PATH, photo_file)
         if not os.path.exists(photo_path):
+            logger.warning(f"Фото не найдено: {photo_path}")
             photo_path = None
+        else:
+            logger.info(f"Фото найдено: {photo_path}")
 
+    msg = None
     if photo_path:
         try:
-            compressed = compress_image(photo_path, max_size_mb=5, max_dimension=2048)
+            compressed = compress_image(photo_path, max_size_mb=1, max_dimension=2048)
+            size_kb = compressed.getbuffer().nbytes / 1024
+            logger.info(f"Размер сжатого фото: {size_kb:.2f} KB")
             msg = await bot.send_photo(
                 chat_id=chat_id,
                 photo=compressed,
@@ -186,6 +209,7 @@ async def send_roulette_result(chat_id, bot, context):
                 reply_markup=get_roulette_keyboard(show_spin=False),
                 parse_mode="Markdown"
             )
+            logger.info("Фото успешно отправлено")
         except Exception as e:
             logger.error(f"Ошибка отправки фото: {e}")
             try:
@@ -197,6 +221,7 @@ async def send_roulette_result(chat_id, bot, context):
                         reply_markup=get_roulette_keyboard(show_spin=False),
                         parse_mode="Markdown"
                     )
+                logger.info("Документ (фото) успешно отправлен")
             except Exception as e2:
                 logger.error(f"Ошибка отправки документа: {e2}")
                 msg = await bot.send_message(
@@ -205,6 +230,7 @@ async def send_roulette_result(chat_id, bot, context):
                     reply_markup=get_roulette_keyboard(show_spin=False),
                     parse_mode="Markdown"
                 )
+                logger.info("Отправлен только текст (без фото)")
     else:
         msg = await bot.send_message(
             chat_id=chat_id,
@@ -212,8 +238,8 @@ async def send_roulette_result(chat_id, bot, context):
             reply_markup=get_roulette_keyboard(show_spin=False),
             parse_mode="Markdown"
         )
+        logger.info("Отправлен только текст (фото отсутствует)")
 
-    # Убираем кнопки у предыдущего сообщения, если оно есть
     old_msg_id = context.user_data.get("last_roulette_message_id")
     if old_msg_id:
         try:
@@ -223,10 +249,9 @@ async def send_roulette_result(chat_id, bot, context):
                 reply_markup=None
             )
         except Exception as e:
-            # Игнорируем ошибку "Message is not modified" и другие
             logger.debug(f"Не удалось убрать кнопки у старого сообщения: {e}")
-    # Сохраняем ID нового сообщения как последнее
-    context.user_data["last_roulette_message_id"] = msg.message_id
+    if msg:
+        context.user_data["last_roulette_message_id"] = msg.message_id
 
 
 async def send_prediction(chat_id, bot, context):
