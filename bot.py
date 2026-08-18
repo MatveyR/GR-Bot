@@ -28,11 +28,13 @@ ABOUT_PHOTO = os.getenv("ABOUT_PHOTO", "")
 ABOUT_VIDEO_NOTE = os.getenv("ABOUT_VIDEO_NOTE", "")
 CUSTOM_EMOJI_ID = os.getenv("CUSTOM_EMOJI_ID", "")
 CONTACTS_EMOJI_ID = os.getenv("CONTACTS_EMOJI_ID", "")
+ROULETTE_PHOTOS_PATH = os.getenv("ROULETTE_PHOTOS_PATH", "")
 
 with open("texts.json", "r", encoding="utf-8") as f:
     texts = json.load(f)
 
-DESTINATIONS = texts.get("destinations", [])
+# Новый список направлений для рулетки
+ROULETTE_DESTINATIONS = texts.get("roulette_destinations", [])
 PREDICTIONS = texts.get("predictions", [])
 
 logging.basicConfig(level=logging.INFO)
@@ -102,17 +104,67 @@ async def notify_chat(application, user, message, feedback_type):
 
 # ========== Вспомогательные функции ==========
 async def send_roulette(chat_id, bot, context):
+    """Отправляет приветствие рулетки и кнопку 'Крутить рулетку'."""
     await bot.send_message(
         chat_id=chat_id,
         text=texts["roulette_intro"],
         disable_web_page_preview=True
     )
-    msg = await bot.send_message(
+    await bot.send_message(
         chat_id=chat_id,
         text="Нажмите кнопку, чтобы начать:",
         reply_markup=get_roulette_keyboard(show_spin=True)
     )
-    context.user_data["roulette_message_id"] = msg.message_id
+
+async def send_roulette_result(chat_id, bot, context):
+    """Выбирает случайное направление и отправляет карточку (фото+текст или просто текст)."""
+    if not ROULETTE_DESTINATIONS:
+        await bot.send_message(chat_id=chat_id, text="Извините, список направлений пока пуст.")
+        return
+
+    dest = random.choice(ROULETTE_DESTINATIONS)
+    name = dest.get("name", "")
+    text_desc = dest.get("text", "")
+    photo_file = dest.get("photo", "")
+
+    # Формируем полный текст: название + описание + ссылка на сайт (уже включена в описание)
+    full_text = f"*{name}*\n\n{text_desc}"
+
+    # Проверяем наличие фото
+    photo_path = None
+    if photo_file and ROULETTE_PHOTOS_PATH:
+        photo_path = os.path.join(ROULETTE_PHOTOS_PATH, photo_file)
+        if not os.path.exists(photo_path):
+            photo_path = None
+
+    if photo_path:
+        # Отправляем фото с подписью
+        try:
+            with open(photo_path, "rb") as f:
+                await bot.send_photo(
+                    chat_id=chat_id,
+                    photo=f,
+                    caption=full_text,
+                    reply_markup=get_roulette_keyboard(show_spin=False),
+                    parse_mode="Markdown"
+                )
+        except Exception as e:
+            logger.error(f"Ошибка отправки фото: {e}")
+            # fallback: отправляем текст
+            await bot.send_message(
+                chat_id=chat_id,
+                text=full_text,
+                reply_markup=get_roulette_keyboard(show_spin=False),
+                parse_mode="Markdown"
+            )
+    else:
+        # Отправляем только текст
+        await bot.send_message(
+            chat_id=chat_id,
+            text=full_text,
+            reply_markup=get_roulette_keyboard(show_spin=False),
+            parse_mode="Markdown"
+        )
 
 async def send_prediction(chat_id, bot, context):
     await bot.send_message(
@@ -251,7 +303,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_main_menu_keyboard()
         )
         context.user_data.pop("awaiting_feedback", None)
-        context.user_data.pop("roulette_message_id", None)
         context.user_data.pop("prediction_message_id", None)
         return
 
@@ -266,7 +317,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "download_presentation":
-        # Убираем кнопки из текущего сообщения (меню "О нас")
         await query.edit_message_reply_markup(reply_markup=None)
         try:
             with open(PRESENTATION_PATH, "rb") as f:
@@ -278,7 +328,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text(
                 texts["presentation"] + "\n\nИзвините, файл презентации временно недоступен. Попробуйте позже."
             )
-        # Отправляем дополнительное меню
         await query.message.reply_text(
             "Дополнительные действия:",
             reply_markup=get_presentation_keyboard()
@@ -286,25 +335,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "roulette_spin":
-        dest = random.choice(DESTINATIONS)
-        message_id = context.user_data.get("roulette_message_id")
-        if message_id:
-            try:
-                await context.bot.edit_message_text(
-                    chat_id=update.effective_chat.id,
-                    message_id=message_id,
-                    text=texts["roulette_result"].format(destination=dest),
-                    reply_markup=get_roulette_keyboard(show_spin=False),
-                    parse_mode="Markdown"
-                )
-            except Exception as e:
-                logger.error(f"Ошибка редактирования рулетки: {e}")
-        else:
-            await query.edit_message_text(
-                texts["roulette_result"].format(destination=dest),
-                reply_markup=get_roulette_keyboard(show_spin=False),
-                parse_mode="Markdown"
-            )
+        # Отправляем новое сообщение с направлением
+        await send_roulette_result(query.message.chat_id, context.bot, context)
         return
 
     if data == "prediction_spin":
