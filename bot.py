@@ -86,7 +86,7 @@ def get_roulette_keyboard(show_spin=True):
 
 def get_prediction_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔮 Ещё предсказание", callback_data="prediction_spin")],
+        [InlineKeyboardButton("🪄 Ещё предсказание", callback_data="prediction_spin")],
         [InlineKeyboardButton("Главное меню", callback_data="main_menu")],
     ])
 
@@ -183,7 +183,8 @@ async def project(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         texts["project"],
         reply_markup=ReplyKeyboardRemove(),
-        disable_web_page_preview=True
+        disable_web_page_preview=True,
+        parse_mode="HTML"
     )
     await update.message.reply_text(
         "Для отмены нажмите кнопку ниже:",
@@ -386,11 +387,11 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["awaiting_feedback"] = True
         context.user_data["feedback_type"] = "Вопрос Михаилу"
         await update.message.reply_text(
-            "Напишите ваш вопрос для Михаила. Бот передаст его в общий чат организаторов.",
+            texts["ask_message"],
             reply_markup=ReplyKeyboardRemove()
         )
         await update.message.reply_text(
-            texts["ask_message"],
+            "Напишите ваше сообщение. (Нажмите «Отмена» чтобы выйти)",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена", callback_data="cancel_feedback")]])
         )
     elif text == "Стать подрядчиком":
