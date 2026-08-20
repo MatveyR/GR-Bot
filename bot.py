@@ -263,7 +263,7 @@ async def send_roulette_result(chat_id, bot, context):
 
 
 async def delayed_roulette_result(chat_id, context):
-    await asyncio.sleep(5)
+    await asyncio.sleep(2.5)
     await send_roulette_result(chat_id, context.bot, context)
 
 
