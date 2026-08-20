@@ -3,6 +3,7 @@ import json
 import logging
 import random
 import io
+import asyncio
 from dotenv import load_dotenv
 from PIL import Image
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove, \
@@ -32,6 +33,7 @@ ABOUT_VIDEO_NOTE = os.getenv("ABOUT_VIDEO_NOTE", "")
 CUSTOM_EMOJI_ID = os.getenv("CUSTOM_EMOJI_ID", "")
 CONTACTS_EMOJI_ID = os.getenv("CONTACTS_EMOJI_ID", "")
 ROULETTE_PHOTOS_PATH = os.getenv("ROULETTE_PHOTOS_PATH", "")
+ROULETTE_STICKER_ID = os.getenv("ROULETTE_STICKER_ID", "")
 
 with open("texts.json", "r", encoding="utf-8") as f:
     texts = json.load(f)
@@ -46,7 +48,6 @@ logger = logging.getLogger(__name__)
 # ========== Сжатие фото с EXIF-поворотом ==========
 def compress_image(image_path, max_size_mb=1, max_dimension=2048):
     with Image.open(image_path) as img:
-        # Обработка EXIF-ориентации
         try:
             exif = img._getexif()
             if exif:
@@ -185,6 +186,13 @@ async def send_roulette_result(chat_id, bot, context):
     text_desc = dest.get("text", "")
     photo_file = dest.get("photo", "")
 
+    # Добавляем 👈 после ссылки, если она есть
+    if "[Больше фото и кейсов на сайте](https://globalrussia.com/)" in text_desc:
+        text_desc = text_desc.replace(
+            "[Больше фото и кейсов на сайте](https://globalrussia.com/)",
+            "[Больше фото и кейсов на сайте](https://globalrussia.com/) 👈"
+        )
+
     full_text = f"*{name}*\n\n{text_desc}"
 
     photo_path = None
@@ -254,6 +262,11 @@ async def send_roulette_result(chat_id, bot, context):
         context.user_data["last_roulette_message_id"] = msg.message_id
 
 
+async def delayed_roulette_result(chat_id, context):
+    await asyncio.sleep(5)
+    await send_roulette_result(chat_id, context.bot, context)
+
+
 async def send_prediction(chat_id, bot, context):
     await bot.send_message(
         chat_id=chat_id,
@@ -271,6 +284,8 @@ async def send_prediction(chat_id, bot, context):
 
 # ========== Команды ==========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return
     emoji_html = f'<tg-emoji emoji-id="{CUSTOM_EMOJI_ID}">⭐</tg-emoji>' if CUSTOM_EMOJI_ID else "🌟"
     text = texts["start"].format(custom_emoji=emoji_html)
     await update.message.reply_text(
@@ -282,6 +297,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return
     if ABOUT_PHOTO and os.path.exists(ABOUT_PHOTO):
         try:
             with open(ABOUT_PHOTO, "rb") as photo:
@@ -321,6 +338,8 @@ async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def project(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return
     context.user_data["awaiting_feedback"] = True
     context.user_data["feedback_type"] = "Обсуждение проекта"
     await update.message.reply_text(
@@ -336,6 +355,8 @@ async def project(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def presentation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return
     try:
         with open(PRESENTATION_PATH, "rb") as f:
             await update.message.reply_document(
@@ -355,6 +376,8 @@ async def presentation(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def partner(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return
     context.user_data["awaiting_feedback"] = True
     context.user_data["feedback_type"] = "Стать подрядчиком"
     await update.message.reply_text(
@@ -369,6 +392,8 @@ async def partner(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def contacts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return
     emoji_html = f'<tg-emoji emoji-id="{CONTACTS_EMOJI_ID}">⭐</tg-emoji>' if CONTACTS_EMOJI_ID else "🌟"
     text = texts["contacts"].format(custom_emoji=emoji_html)
     await update.message.reply_text(
@@ -379,10 +404,14 @@ async def contacts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return
     await send_roulette(update.effective_chat.id, context.bot, context)
 
 
 async def prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return
     await send_prediction(update.effective_chat.id, context.bot, context)
 
 
@@ -391,6 +420,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
+    chat_id = query.message.chat_id
 
     if data == "main_menu":
         await query.edit_message_reply_markup(reply_markup=None)
@@ -401,6 +431,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop("awaiting_feedback", None)
         context.user_data.pop("prediction_message_id", None)
         context.user_data.pop("last_roulette_message_id", None)
+        # Удаляем стикер, если он есть
+        sticker_id = context.user_data.pop("roulette_sticker_id", None)
+        if sticker_id:
+            try:
+                await context.bot.delete_message(chat_id=chat_id, message_id=sticker_id)
+            except Exception as e:
+                logger.debug(f"Не удалось удалить стикер: {e}")
         return
 
     if data == "cancel_feedback":
@@ -432,7 +469,21 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "roulette_spin":
-        await send_roulette_result(query.message.chat_id, context.bot, context)
+        # Удаляем старый стикер
+        old_sticker_id = context.user_data.get("roulette_sticker_id")
+        if old_sticker_id:
+            try:
+                await context.bot.delete_message(chat_id=chat_id, message_id=old_sticker_id)
+            except Exception as e:
+                logger.debug(f"Не удалось удалить старый стикер: {e}")
+        # Отправляем новый стикер
+        if ROULETTE_STICKER_ID:
+            sticker_msg = await context.bot.send_sticker(chat_id=chat_id, sticker=ROULETTE_STICKER_ID)
+            context.user_data["roulette_sticker_id"] = sticker_msg.message_id
+        else:
+            logger.warning("ROULETTE_STICKER_ID не задан, пропускаем анимацию")
+        # Запускаем отложенную отправку результата
+        asyncio.create_task(delayed_roulette_result(chat_id, context))
         return
 
     if data == "prediction_spin":
@@ -487,6 +538,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ========== Обработка текста ==========
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return
     if context.user_data.get("awaiting_feedback"):
         user = update.effective_user
         msg = update.message.text
@@ -507,6 +560,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return
     text = update.message.text
     if text == "О нас":
         await about(update, context)
@@ -549,10 +604,14 @@ def main():
     application.add_handler(CommandHandler("prediction", prediction))
 
     application.add_handler(MessageHandler(
-        filters.Regex("^(О нас|Презентация|Обсудить проект|Задать вопрос Михаилу|Стать подрядчиком|Контакты)$"),
+        filters.Regex(
+            "^(О нас|Презентация|Обсудить проект|Задать вопрос Михаилу|Стать подрядчиком|Контакты)$") & filters.ChatType.PRIVATE,
         handle_main_menu
     ))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    application.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE,
+        handle_text
+    ))
     application.add_handler(CallbackQueryHandler(button_callback))
 
     application.run_polling()
